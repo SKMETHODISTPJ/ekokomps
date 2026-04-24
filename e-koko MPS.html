@@ -1,0 +1,1267 @@
+<!DOCTYPE html>
+<html lang="ms">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Sistem Kokurikulum Digital - SKMPJ</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700&display=swap');
+        body { font-family: 'Plus Jakarta Sans', sans-serif; background-color: #f8fafc; }
+        .glass-card { background: rgba(255, 255, 255, 0.9); backdrop-filter: blur(10px); border: 1px solid rgba(255, 255, 255, 0.2); }
+        .btn-gradient { background: linear-gradient(135deg, #4f46e5 0%, #7c3aed 100%); transition: all 0.3s ease; }
+        .btn-gradient:hover { transform: translateY(-2px); box-shadow: 0 10px 15px -3px rgba(79, 70, 229, 0.4); }
+        
+        /* Custom Scrollbar for list */
+        ::-webkit-scrollbar { width: 6px; }
+        ::-webkit-scrollbar-track { background: #f1f1f1; }
+        ::-webkit-scrollbar-thumb { background: #c7c7cc; border-radius: 10px; }
+        ::-webkit-scrollbar-thumb:hover { background: #a1a1aa; }
+    </style>
+</head>
+<body class="min-h-screen text-gray-900">
+
+    <div id="loading-screen" class="fixed inset-0 z-[9999] bg-[#f8fafc] flex flex-col items-center justify-center transition-opacity duration-500">
+        <div class="relative w-32 h-32 mb-8">
+            <div class="absolute inset-0 bg-purple-400 rounded-full animate-ping opacity-20"></div>
+            <div class="absolute inset-2 bg-indigo-300 rounded-full animate-ping opacity-40" style="animation-delay: 0.5s;"></div>
+            <img src="https://www.image2url.com/r2/default/images/1777004127159-eeeb0c89-141c-439e-9650-a0fef2baa72b.png" alt="Logo e-Koko" class="relative z-10 w-full h-full object-contain drop-shadow-2xl animate-pulse">
+        </div>
+        
+        <h2 class="text-3xl font-black text-transparent bg-clip-text bg-gradient-to-r from-purple-600 to-indigo-600 mb-2 tracking-tight">
+            Digital Hub SK Methodist PJ
+        </h2>
+        
+        <p id="loading-text" class="text-gray-500 font-bold text-sm tracking-wide h-6 text-center mb-4">
+            Menghidupkan sistem e-Kokurikulum...
+        </p>
+        
+        <div class="w-64 flex flex-col items-center">
+            <div class="w-full h-2.5 bg-gray-200 rounded-full overflow-hidden shadow-inner mb-2">
+                <div id="loading-bar" class="h-full bg-gradient-to-r from-purple-500 to-indigo-500 transition-all duration-300 ease-out" style="width: 0%;"></div>
+            </div>
+            <p id="loading-percentage" class="text-xs font-black text-indigo-600 tracking-wider">0%</p>
+        </div>
+    </div>
+
+    <div id="app" class="max-w-4xl mx-auto p-4 md:p-8 print:max-w-none print:p-0">
+    </div>
+
+    <footer class="fixed bottom-0 left-0 w-full bg-white border-t border-gray-200 py-3 z-50 shadow-[0_-4px_6px_-1px_rgba(0,0,0,0.05)] print:hidden">
+        <div class="flex items-center justify-center gap-2 text-[10px] sm:text-xs font-bold text-gray-400 uppercase tracking-widest">
+            <img src="https://www.image2url.com/r2/default/images/1777004127159-eeeb0c89-141c-439e-9650-a0fef2baa72b.png" alt="Logo" class="h-5 w-5 object-contain">
+            <span>Sistem e-Koko © 2026 | SKMPJ Digital</span>
+        </div>
+    </footer>
+
+    <script>
+        // --- LOGIK LOADING BAR & PERCENTAGE ---
+        let simProgress = 0;
+        let progressInterval;
+
+        function mulaLoadingAnimasi() {
+            const bar = document.getElementById('loading-bar');
+            const perc = document.getElementById('loading-percentage');
+            const text = document.getElementById('loading-text');
+
+            // Bar naik secara rawak setiap 0.2 saat
+            progressInterval = setInterval(() => {
+                let tambah = Math.floor(Math.random() * 6) + 1;
+                simProgress += tambah;
+
+                // Sangkut kat 90% selagi data sebenar belum siap tarik
+                if (simProgress > 90) {
+                    simProgress = 90;
+                }
+
+                if (bar && perc && text) {
+                    bar.style.width = simProgress + '%';
+                    perc.innerText = simProgress + '%';
+
+                    if (simProgress < 40) {
+                        text.innerText = "Menghidupkan sistem...";
+                    } else {
+                        text.innerText = "Menarik data pelayan...";
+                    }
+                }
+            }, 200);
+        }
+
+        // Terus jalankan fungsi animasi bila dibuka
+        mulaLoadingAnimasi();
+
+        // MASUKKAN URL APPS SCRIPT BOS DI SINI (YANG NEW DEPLOYMENT TU)
+        const SCRIPT_URL = "https://script.google.com/macros/s/AKfycbyslqhYRmJhgUei9DyWr9NhgfFkhcDddKMyFiIDEG2O3oQcKz8zbSbVNryGXfFyGBKm1w/exec";
+
+        let MASTER_DATA = { units: [], murid: [], guru: [], rekod_kehadiran: [], rekod_laporan: [] };
+
+        async function initApp() {
+    try {
+        console.log("Cuba tarik data dari URL:", `${SCRIPT_URL}?action=getMasterData`);
+        
+        const response = await fetch(`${SCRIPT_URL}?action=getMasterData`);
+        const textData = await response.text();
+        MASTER_DATA = JSON.parse(textData);
+        
+        // DATA DAH MASUK! HILANGKAN LOADING SCREEN DENGAN ANIMASI
+        clearInterval(progressInterval); // Berhentikan peratusan animasi
+        const loadingBar = document.getElementById('loading-bar');
+        const loadingPerc = document.getElementById('loading-percentage');
+        const loadingText = document.getElementById('loading-text');
+        
+        if (loadingBar && loadingPerc && loadingText) {
+            loadingBar.style.width = '100%';
+            loadingPerc.innerText = '100%';
+            loadingText.innerText = "Selesai!";
+        }
+
+        setTimeout(() => {
+            const loadingScreen = document.getElementById('loading-screen');
+            if (loadingScreen) {
+                loadingScreen.style.opacity = "0";
+                setTimeout(() => {
+                    loadingScreen.style.display = "none";
+                }, 500); 
+            }
+        }, 500);
+
+        renderLanding();
+
+    } catch (e) {
+        console.error("Ralat Tersembunyi Dikesan:", e);
+        clearInterval(progressInterval); // Berhentikan juga kalau error
+        
+        // PAPARKAN ERROR DI LOADING SCREEN BARU
+        document.getElementById('loading-screen').innerHTML = `
+            <div class="text-center bg-red-50 p-8 rounded-2xl border-2 border-red-200 m-4 shadow-lg">
+                <i class="fas fa-exclamation-triangle text-4xl text-red-500 mb-4"></i>
+                <h3 class="text-red-700 font-bold text-xl mb-2">Alamak, ada ralat!</h3>
+                <p class="text-red-500 font-mono text-sm bg-white p-3 rounded border border-red-100 break-words">${e.message}</p>
+            </div>
+        `;
+    }
+}
+
+        // --- 1. LANDING PAGE ---
+        function renderLanding() {
+            const container = document.getElementById('app');
+            container.innerHTML = `
+<button onclick="bukaAdmin()" class="absolute top-4 right-4 text-gray-400 hover:text-gray-800 transition">
+    <i class="fas fa-cog text-xl"></i>
+</button>
+                <div class="text-center mb-10">
+                    <h1 class="text-4xl font-extrabold text-indigo-900 mb-2">KOKURIKULUM DIGITAL MPS</h1>
+                    <p class="text-gray-500 uppercase tracking-widest font-semibold text-sm">SK Methodist Petaling Jaya</p>
+                </div>
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    <button onclick="renderKategori('kehadiran')" class="glass-card p-8 rounded-3xl text-center hover:bg-indigo-50 transition group shadow-sm">
+                        <div class="bg-indigo-100 w-16 h-16 rounded-2xl flex items-center justify-center mx-auto mb-4 group-hover:scale-110 transition">
+                            <i class="fas fa-user-check text-2xl text-indigo-600"></i>
+                        </div>
+                        <h2 class="text-xl font-bold text-indigo-900">KEHADIRAN</h2>
+                        <p class="text-gray-500 text-sm mt-2">Rekod kehadiran murid dan guru disini</p>
+                    </button>
+                    <button onclick="renderKategori('laporan')" class="glass-card p-8 rounded-3xl text-center hover:bg-purple-50 transition group shadow-sm">
+                        <div class="bg-purple-100 w-16 h-16 rounded-2xl flex items-center justify-center mx-auto mb-4 group-hover:scale-110 transition">
+                            <i class="fas fa-file-signature text-2xl text-purple-600"></i>
+                        </div>
+                        <h2 class="text-xl font-bold text-purple-900">LAPORAN</h2>
+                        <p class="text-gray-500 text-sm mt-2">Rekod aktiviti mingguan unit anda disini</p>
+                    </button>
+                </div>
+            `;
+        }
+
+        // --- 2. PILIH KATEGORI ---
+        function renderKategori(type) {
+            const container = document.getElementById('app');
+            const categories = [...new Set(MASTER_DATA.units.map(u => u.units__kategori))].filter(cat => cat && cat.trim() !== '');
+            
+            container.innerHTML = `
+                <div class="mb-6 flex justify-between items-center bg-white p-3 rounded-xl shadow-sm border border-gray-100">
+                    <div class="flex gap-4 items-center">
+                        <button onclick="renderLanding()" class="text-gray-500 hover:text-indigo-600 font-bold flex items-center gap-2 transition">
+                            <i class="fas fa-arrow-left"></i> Kembali
+                        </button>
+                    </div>
+                    <span class="bg-indigo-100 text-indigo-700 px-3 py-1 rounded-full text-xs font-bold uppercase tracking-wider">Langkah 1/3</span>
+                </div>
+                <h2 class="text-2xl font-bold text-indigo-900 mb-6">Pilih Kategori Koku</h2>
+                <div class="grid gap-4">
+                    ${categories.map(cat => `
+                        <button onclick="renderUnits('${type}', '${cat}')" class="bg-white p-6 rounded-2xl shadow-sm border hover:border-indigo-500 hover:shadow-md transition text-left flex items-center justify-between group">
+                            <span class="text-lg font-bold text-gray-800 group-hover:text-indigo-600">${cat}</span>
+                            <i class="fas fa-chevron-right text-gray-300 group-hover:text-indigo-600"></i>
+                        </button>
+                    `).join('')}
+                </div>
+            `;
+        }
+
+        // --- 3. PILIH UNIT ---
+        function renderUnits(type, category) {
+            const container = document.getElementById('app');
+            const unitsInCategory = MASTER_DATA.units.filter(u => u.units__kategori === category);
+            
+            container.innerHTML = `
+                <div class="mb-6 flex justify-between items-center bg-white p-3 rounded-xl shadow-sm border border-gray-100">
+                    <div class="flex gap-4 items-center">
+                        <button onclick="renderKategori('${type}')" class="text-gray-500 hover:text-indigo-600 font-bold flex items-center gap-2 transition">
+                            <i class="fas fa-arrow-left"></i> Kembali
+                        </button>
+                    </div>
+                    <span class="bg-indigo-100 text-indigo-700 px-3 py-1 rounded-full text-xs font-bold uppercase tracking-wider">Langkah 2/3</span>
+                </div>
+                <h2 class="text-xl font-bold text-gray-400 uppercase tracking-widest text-sm mb-4">${category}</h2>
+                <h2 class="text-2xl font-bold text-indigo-900 mb-6">Pilih Unit</h2>
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    ${unitsInCategory.map(unit => `
+                        <button onclick="renderMinggu('${type}', '${unit.units__kod_unit}')" class="bg-white p-5 rounded-xl border hover:bg-indigo-50 hover:border-indigo-300 transition text-left flex justify-between items-center group">
+                            <span class="font-semibold text-gray-700 group-hover:text-indigo-900">${unit.units__nama_unit}</span>
+                            <i class="fas fa-arrow-right text-indigo-200 group-hover:text-indigo-600"></i>
+                        </button>
+                    `).join('')}
+                </div>
+            `;
+        }
+
+        // --- 4. PILIH MINGGU ---
+        function renderMinggu(type, unitCode) {
+            const unit = MASTER_DATA.units.find(u => u.units__kod_unit === unitCode);
+            const container = document.getElementById('app');
+            
+            let buttonsHTML = '';
+            for(let i = 1; i <= 12; i++) {
+                let isDone = false;
+                if(type === 'kehadiran') {
+                    isDone = MASTER_DATA.rekod_kehadiran.some(r => r.Kod_Unit === unitCode && String(r.Minggu) === String(i));
+                } else {
+                    isDone = MASTER_DATA.rekod_laporan.some(r => r.Kod_Unit === unitCode && String(r.Minggu) === String(i));
+                }
+
+                if(isDone) {
+                    buttonsHTML += `
+                        <button disabled class="relative bg-gray-100 border-2 border-gray-200 text-gray-400 p-4 rounded-2xl flex flex-col items-center justify-center cursor-not-allowed opacity-70">
+                            <i class="fas fa-check-circle text-green-500 text-2xl mb-1 absolute top-2 right-2"></i>
+                            <span class="text-lg font-bold">M${i}</span>
+                            <span class="text-xs">Selesai</span>
+                        </button>
+                    `;
+                } else {
+                    buttonsHTML += `
+                        <button onclick="startForm('${type}', '${unitCode}', ${i})" class="bg-white border-2 border-indigo-100 text-indigo-700 hover:bg-indigo-600 hover:text-white hover:border-indigo-600 p-4 rounded-2xl flex flex-col items-center justify-center transition-all shadow-sm">
+                            <span class="text-xl font-bold mb-1">M${i}</span>
+                            <span class="text-xs font-medium">Klik Isi</span>
+                        </button>
+                    `;
+                }
+            }
+
+            container.innerHTML = `
+                <div class="mb-6 flex justify-between items-center bg-white p-3 rounded-xl shadow-sm border border-gray-100">
+                    <div class="flex gap-4 items-center">
+                        <button onclick="renderUnits('${type}', '${unit.units__kategori}')" class="text-gray-500 hover:text-indigo-600 font-bold flex items-center gap-2 transition">
+                            <i class="fas fa-arrow-left"></i> Kembali
+                        </button>
+                    </div>
+                    <span class="bg-indigo-100 text-indigo-700 px-3 py-1 rounded-full text-xs font-bold uppercase tracking-wider">Langkah 3/3</span>
+                </div>
+                <h2 class="text-xl font-bold text-gray-400 uppercase tracking-widest text-sm mb-2">${unit.units__nama_unit}</h2>
+                <h2 class="text-2xl font-bold text-indigo-900 mb-6">Pilih Minggu Aktiviti</h2>
+                <div class="grid grid-cols-3 md:grid-cols-4 gap-4">
+                    ${buttonsHTML}
+                </div>
+            `;
+        }
+
+        // --- 5. JALANKAN BORANG ---
+        function startForm(type, unitCode, minggu) {
+            if (type === 'kehadiran') renderAttendanceForm(unitCode, minggu);
+            else renderReportForm(unitCode, minggu);
+        }
+
+        // --- BORANG KEHADIRAN ---
+        function renderAttendanceForm(unitCode, minggu) {
+            const unit = MASTER_DATA.units.find(u => u.units__kod_unit === unitCode);
+            const senaraiMurid = MASTER_DATA.murid.filter(m => m.murid__unit_beruniform === unit.units__nama_unit || m.murid__kelab_persatuan === unit.units__nama_unit || m.murid__sukan_permainan === unit.units__nama_unit);
+            const senaraiGuru = MASTER_DATA.guru.filter(g => g.guru__unit_utama === unit.units__nama_unit || g.guru__unit_kedua === unit.units__nama_unit || g.guru__unit_ketiga === unit.units__nama_unit);
+
+            const container = document.getElementById('app');
+            container.innerHTML = `
+                <div class="mb-6 flex justify-between items-center sticky top-0 bg-[#f8fafc] pt-4 pb-2 z-10">
+                    <button onclick="renderMinggu('kehadiran', '${unitCode}')" class="text-indigo-600 font-bold flex items-center gap-2 bg-white px-4 py-2 rounded-lg shadow-sm">
+                        <i class="fas fa-arrow-left"></i> Batal
+                    </button>
+                   <span class="bg-blue-600 text-white px-4 py-2 rounded-lg text-xs sm:text-sm font-bold shadow-sm uppercase max-w-[60%] truncate text-right">
+    Kehadiran ${unit.units__nama_unit} • M${minggu}</span>
+                </div>
+                
+                <h2 class="text-2xl font-bold text-indigo-900 mb-2">${unit.units__nama_unit}</h2>
+                <p class="text-gray-500 mb-6 font-medium text-sm">Tandakan individu yang HADIR sahaja.</p>
+
+                <div class="bg-white rounded-2xl shadow-sm border mb-6 overflow-hidden">
+                    <div class="p-4 bg-indigo-50 border-b border-indigo-100 flex justify-between items-center">
+                        <span class="text-sm font-bold text-indigo-900"><i class="fas fa-chalkboard-teacher mr-2"></i>KEHADIRAN GURU PENASIHAT</span>
+                        <button onclick="selectAll('guruCheck')" class="text-xs bg-indigo-200 text-indigo-800 font-bold px-3 py-1 rounded-md hover:bg-indigo-300">Pilih Semua</button>
+                    </div>
+                    <div class="max-h-[30vh] overflow-y-auto p-2">
+                        ${senaraiGuru.length > 0 ? senaraiGuru.map(g => `
+                            <label class="flex items-center p-3 border-b border-gray-100 hover:bg-gray-50 cursor-pointer rounded-lg transition">
+                                <input type="checkbox" name="guruCheck" value="${g.guru__id_guru}" class="w-5 h-5 rounded text-indigo-600">
+                                <div class="ml-4">
+                                    <div class="font-bold text-gray-800 text-sm">${g.guru__nama_guru}</div>
+                                </div>
+                            </label>
+                        `).join('') : '<p class="p-4 text-sm text-gray-400 italic">Tiada guru direkodkan untuk unit ini.</p>'}
+                    </div>
+                </div>
+
+                <div class="bg-white rounded-2xl shadow-sm border mb-6 overflow-hidden">
+                    <div class="p-4 bg-gray-50 border-b flex justify-between items-center">
+                        <span class="text-sm font-bold text-gray-700"><i class="fas fa-users mr-2"></i>KEHADIRAN MURID (${senaraiMurid.length})</span>
+                        <button onclick="selectAll('muridCheck')" class="text-xs bg-gray-200 text-gray-800 font-bold px-3 py-1 rounded-md hover:bg-gray-300">Pilih Semua</button>
+                    </div>
+                    <div class="max-h-[40vh] overflow-y-auto p-2">
+                        ${senaraiMurid.map(m => `
+                            <label class="flex items-center p-3 border-b border-gray-100 hover:bg-gray-50 cursor-pointer rounded-lg transition">
+                                <input type="checkbox" name="muridCheck" value="${m.murid__id_murid}" class="w-5 h-5 rounded text-indigo-600">
+                                <div class="ml-4">
+                                    <div class="font-bold text-gray-800 text-sm">${m.murid__nama_murid}</div>
+                                    <div class="text-xs text-gray-400 mt-1">${m.murid__kelas} | ${m.murid__id_murid}</div>
+                                </div>
+                            </label>
+                        `).join('')}
+                    </div>
+                </div>
+
+                <div class="bg-white p-6 rounded-2xl shadow-lg border-t-4 border-indigo-500">
+                    <label class="block text-sm font-bold text-gray-700 mb-2">Disahkan Oleh (Guru Pengisi): <span class="text-red-500">*</span></label>
+                    <select id="guruPengisi" class="w-full p-3 border border-gray-300 rounded-xl bg-gray-50 outline-none focus:ring-2 focus:ring-indigo-500 mb-6 font-medium">
+                        <option value="">-- Sila Pilih Nama Anda --</option>
+                        ${senaraiGuru.map(g => `<option value="${g.guru__id_guru}">${g.guru__nama_guru}</option>`).join('')}
+                    </select>
+
+                    <button onclick="submitKehadiran('${unitCode}', ${minggu})" class="w-full btn-gradient text-white font-bold py-4 rounded-xl shadow-md text-lg">
+                        <i class="fas fa-paper-plane mr-2"></i> HANTAR REKOD
+                    </button>
+                </div>
+            `;
+        }
+
+        function selectAll(checkboxName) {
+            const checkboxes = document.querySelectorAll(`input[name="${checkboxName}"]`);
+            const allChecked = Array.from(checkboxes).every(cb => cb.checked);
+            checkboxes.forEach(cb => cb.checked = !allChecked);
+        }
+
+        async function submitKehadiran(unitCode, minggu) {
+    // Kunci butang sementara data dihantar
+    let btnSubmit = event ? event.target : null;
+    if(btnSubmit) btnSubmit.disabled = true;
+
+    const idGuruPengisi = document.getElementById('guruPengisi').value;
+    if(!idGuruPengisi) {
+        if(btnSubmit) btnSubmit.disabled = false;
+        return Swal.fire('Perhatian', 'Sila pilih nama anda di ruangan "Guru Pengisi".', 'warning');
+    }
+
+    const selectedMurid = Array.from(document.querySelectorAll('input[name="muridCheck"]:checked')).map(cb => cb.value);
+    const allMuridIds = Array.from(document.querySelectorAll('input[name="muridCheck"]')).map(cb => cb.value);
+    const notHadirMurid = allMuridIds.filter(id => !selectedMurid.includes(id));
+
+    const selectedGuru = Array.from(document.querySelectorAll('input[name="guruCheck"]:checked')).map(cb => cb.value);
+    const allGuruIds = Array.from(document.querySelectorAll('input[name="guruCheck"]')).map(cb => cb.value);
+    const notHadirGuru = allGuruIds.filter(id => !selectedGuru.includes(id));
+
+    const peratus = allMuridIds.length > 0 ? ((selectedMurid.length / allMuridIds.length) * 100).toFixed(2) : 0;
+
+    const payload = {
+        action: 'saveKehadiran',
+        tarikh: new Date().toLocaleDateString('ms-MY'),
+        minggu: minggu,
+        kod_unit: unitCode,
+        id_guru: idGuruPengisi,
+        murid_hadir: selectedMurid,
+        murid_tak_hadir: notHadirMurid,
+        guru_hadir: selectedGuru, 
+        guru_tak_hadir: notHadirGuru,
+        jumlah_murid: allMuridIds.length,
+        jumlah_hadir: selectedMurid.length,
+        peratus_hadir: peratus
+    };
+
+    Swal.fire({ title: 'Menyimpan Rekod...', allowOutsideClick: false, didOpen: () => Swal.showLoading() });
+
+    try {
+        const res = await fetch(SCRIPT_URL, { method: 'POST', body: JSON.stringify(payload) });
+        const result = await res.json();
+        if(result.status === 'success') {
+            
+            // --- KOD BARU: Kita buang rekod lama (kalau ada) dan masukkan data Penuh supaya tak crash! ---
+            MASTER_DATA.rekod_kehadiran = MASTER_DATA.rekod_kehadiran.filter(r => !(r.Kod_Unit === unitCode && String(r.Minggu) === String(minggu)));
+            
+            MASTER_DATA.rekod_kehadiran.push({ 
+                Kod_Unit: unitCode, 
+                Minggu: minggu,
+                Jumlah_Hadir: selectedMurid.length,
+                Peratus_Hadir: peratus,
+                Guru_Hadir: JSON.stringify(selectedGuru) // Ini yang buat dia tak crash!
+            });
+            // --------------------------------------------------------------------------------------------
+            
+            Swal.fire({
+                title: 'Berjaya Disimpan!',
+                text: 'Rekod kehadiran telah dikemaskini.',
+                icon: 'success',
+                showCancelButton: true,
+                confirmButtonText: '<i class="fas fa-file-signature"></i> Isi Laporan',
+                cancelButtonText: '<i class="fas fa-home"></i> Utama',
+                confirmButtonColor: '#7c3aed',
+                cancelButtonColor: '#6b7280',
+                reverseButtons: true,
+                allowOutsideClick: false
+            }).then((result_swal) => {
+                if (result_swal.isConfirmed) {
+                    
+                    // Terus panggil fungsi laporan bos. Tak payah delay-delay!
+                    startForm('laporan', unitCode, minggu);
+                    window.scrollTo(0, 0); // Naik atas balik
+                    
+                } else {
+                    renderLanding();
+                }
+            });
+        }
+    } catch (e) {
+        Swal.fire('Ralat', 'Talian internet terputus atau ralat pelayan.', 'error');
+    } finally {
+        // --- Buka balik kunci butang walaupun ralat ---
+        const btnSimpan = document.getElementById('btn-simpan-kehadiran');
+        if (btnSimpan) {
+            btnSimpan.disabled = false;
+            btnSimpan.innerHTML = '<i class="fas fa-save"></i> Simpan Kehadiran';
+        }
+    }
+}
+
+        // --- BORANG LAPORAN AKTIVITI ---
+       // --- BORANG LAPORAN AKTIVITI (VERSI FULL FEATURES + LOCK) ---
+function renderReportForm(unitCode, minggu) {
+    const unit = MASTER_DATA.units.find(u => u.units__kod_unit === unitCode);
+    
+    // 1. CARI REKOD KEHADIRAN (Pintu Pagar Utama)
+    const rekodHadir = MASTER_DATA.rekod_kehadiran.find(r => r.Kod_Unit === unitCode && String(r.Minggu) === String(minggu));
+    const isLocked = !rekodHadir; 
+
+    // 2. KEKALKAN LOGIK ASAL BOS (Jangan usahakan part ni)
+    const jmlHadir = rekodHadir ? rekodHadir.Jumlah_Hadir : 0;
+    const peratus = rekodHadir ? rekodHadir.Peratus_Hadir : 0;
+    
+    // Logik JSON.parse asal bos untuk Guru_Hadir
+    let jmlGuru = 0;
+    try {
+        jmlGuru = rekodHadir && rekodHadir.Guru_Hadir ? JSON.parse(rekodHadir.Guru_Hadir).length : 0;
+    } catch(e) {
+        jmlGuru = 0;
+    }
+
+    const senaraiGuru = MASTER_DATA.guru.filter(g => 
+        g.guru__unit_utama === unit.units__nama_unit || 
+        g.guru__unit_kedua === unit.units__nama_unit || 
+        g.guru__unit_ketiga === unit.units__nama_unit
+    );
+
+    const container = document.getElementById('app');
+    
+    // 3. LUKIS HTML (Kekalkan UI asal bos tapi tambah 'disabled' & 'isLocked')
+    container.innerHTML = `
+        <div class="mb-6 flex justify-between items-center sticky top-0 bg-[#f8fafc] pt-4 pb-2 z-10">
+            <button onclick="renderMinggu('laporan', '${unitCode}')" class="text-indigo-600 font-bold flex items-center gap-2 bg-white px-4 py-2 rounded-lg shadow-sm">
+                <i class="fas fa-arrow-left"></i> Batal
+            </button>
+            <span class="bg-purple-600 text-white px-4 py-2 rounded-lg text-xs sm:text-sm font-bold shadow-sm uppercase max-w-[60%] truncate text-right">Laporan ${unit.units__nama_unit} • M${minggu}</span>
+        </div>
+
+        <div class="grid grid-cols-2 gap-4 mb-6 ${isLocked ? 'opacity-50' : ''}">
+            <div class="bg-white p-4 rounded-2xl border-l-4 border-green-500 shadow-sm">
+                <p class="text-xs text-gray-500 font-bold uppercase">Murid Hadir</p>
+                <p class="text-2xl font-black text-gray-800">${jmlHadir}</p>
+            </div>
+            <div class="bg-white p-4 rounded-2xl border-l-4 border-orange-500 shadow-sm">
+                <p class="text-xs text-gray-500 font-bold uppercase">Peratusan</p>
+                <p class="text-2xl font-black text-gray-800">${peratus}%</p>
+            </div>
+        </div>
+
+        ${isLocked ? `
+            <div class="bg-red-50 border-2 border-red-200 p-6 rounded-3xl mb-6 text-center shadow-sm">
+                <i class="fas fa-lock text-red-500 text-3xl mb-2"></i>
+                <h3 class="text-red-800 font-black text-lg uppercase leading-tight">Kehadiran Belum Diisi!</h3>
+                <p class="text-red-600 text-xs font-medium mb-4">Anda tidak dibenarkan mengisi laporan sebelum menghantar kehadiran.</p>
+                <button onclick="renderMinggu('kehadiran', '${unitCode}')" class="bg-red-600 text-white px-5 py-2 rounded-xl font-bold text-xs shadow-md">
+                    Isi Kehadiran M${minggu}
+                </button>
+            </div>
+        ` : ''}
+
+        <div class="bg-white p-6 rounded-3xl shadow-sm border border-gray-100 space-y-5 ${isLocked ? 'pointer-events-none opacity-40 select-none' : ''}">
+            <div>
+                <label class="block text-sm font-bold text-gray-700 mb-1">Tajuk Aktiviti</label>
+                <input type="text" id="rep_tajuk" ${isLocked ? 'disabled' : ''} class="w-full p-3 border rounded-xl bg-gray-50 focus:ring-2 focus:ring-purple-500 outline-none" placeholder="Contoh: Kawad Kaki Asas">
+            </div>
+            <div>
+                <label class="block text-sm font-bold text-gray-700 mb-1">Objektif</label>
+                <textarea id="rep_objektif" ${isLocked ? 'disabled' : ''} rows="2" class="w-full p-3 border rounded-xl bg-gray-50 focus:ring-2 focus:ring-purple-500 outline-none" placeholder="Apa yang murid belajar?"></textarea>
+            </div>
+            <div>
+                <label class="block text-sm font-bold text-gray-700 mb-1">Aktiviti Dijalankan</label>
+                <textarea id="rep_aktiviti" ${isLocked ? 'disabled' : ''} rows="4" class="w-full p-3 border rounded-xl bg-gray-50 focus:ring-2 focus:ring-purple-500 outline-none" placeholder="Terangkan langkah-langkah aktiviti..."></textarea>
+            </div>
+            <div>
+                <label class="block text-sm font-bold text-gray-700 mb-1">Rumusan/Catatan</label>
+                <textarea id="rep_rumusan" ${isLocked ? 'disabled' : ''} rows="2" class="w-full p-3 border rounded-xl bg-gray-50 focus:ring-2 focus:ring-purple-500 outline-none" placeholder="Kekuatan/Kelemahan aktiviti hari ini."></textarea>
+            </div>
+
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-4 pt-2">
+                <div>
+                    <label class="block text-xs font-bold text-gray-400 mb-1 uppercase">Gambar Aktiviti 1</label>
+                    <input type="file" id="img1" ${isLocked ? 'disabled' : ''} accept="image/*" class="w-full text-xs text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-xs file:font-semibold file:bg-purple-50 file:text-purple-700 hover:file:bg-purple-100">
+                </div>
+                <div>
+                    <label class="block text-xs font-bold text-gray-400 mb-1 uppercase">Gambar Aktiviti 2</label>
+                    <input type="file" id="img2" ${isLocked ? 'disabled' : ''} accept="image/*" class="w-full text-xs text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-xs file:font-semibold file:bg-purple-50 file:text-purple-700 hover:file:bg-purple-100">
+                </div>
+            </div>
+
+            <div class="pt-4">
+                <label class="block text-sm font-bold text-gray-700 mb-2">Disediakan Oleh:</label>
+                <select id="rep_guru" ${isLocked ? 'disabled' : ''} class="w-full p-3 border rounded-xl bg-gray-50 focus:ring-2 focus:ring-purple-500 outline-none font-medium text-sm">
+                    <option value="">-- Pilih Nama Pelapor --</option>
+                    ${senaraiGuru.map(g => `<option value="${g.guru__id_guru}">${g.guru__nama_guru}</option>`).join('')}
+                </select>
+            </div>
+
+            ${isLocked ? `
+                <div class="w-full bg-gray-200 text-gray-400 font-bold py-4 rounded-xl text-center cursor-not-allowed">
+                    <i class="fas fa-lock mr-2"></i> SILA ISI KEHADIRAN DAHULU
+                </div>
+            ` : `
+                <button onclick="submitLaporan('${unitCode}', ${minggu}, ${jmlHadir}, ${jmlGuru}, ${peratus})" class="w-full bg-gradient-to-r from-purple-600 to-indigo-600 text-white font-bold py-4 rounded-xl shadow-lg hover:scale-[1.02] transition">
+                    <i class="fas fa-save mr-2"></i> SIMPAN LAPORAN
+                </button>
+            `}
+        </div>
+    `;
+}
+
+        async function submitLaporan(unitCode, minggu, jmlHadir, jmlGuru, peratus) {
+            const idGuru = document.getElementById('rep_guru').value;
+            if(!idGuru || !document.getElementById('rep_tajuk').value) {
+                return Swal.fire('Perhatian', 'Sila lengkapkan Tajuk dan Nama Pelapor.', 'warning');
+            }
+
+            Swal.fire({ title: 'Menghantar Laporan...', text: 'Sila tunggu sebentar (Proses gambar mungkin ambil masa)', allowOutsideClick: false, didOpen: () => Swal.showLoading() });
+
+            const toBase64 = file => new Promise((resolve, reject) => {
+                if(!file) resolve("");
+                const reader = new FileReader();
+                reader.readAsDataURL(file);
+                reader.onload = () => resolve(reader.result);
+                reader.onerror = error => reject(error);
+            });
+
+            const img1File = document.getElementById('img1').files[0];
+            const img2File = document.getElementById('img2').files[0];
+
+            const payload = {
+                action: 'saveLaporan',
+                tarikh: new Date().toLocaleDateString('ms-MY'),
+                minggu: minggu,
+                kod_unit: unitCode,
+                id_guru: idGuru,
+                tajuk_aktiviti: document.getElementById('rep_tajuk').value,
+                objektif: document.getElementById('rep_objektif').value,
+                aktiviti_dijalankan: document.getElementById('rep_aktiviti').value,
+                rumusan: document.getElementById('rep_rumusan').value,
+                jumlah_murid_hadir: jmlHadir,
+                jumlah_guru_hadir: jmlGuru,
+                peratus_hadir: peratus,
+                img1: await toBase64(img1File),
+                img2: await toBase64(img2File)
+            };
+
+            try {
+                const res = await fetch(SCRIPT_URL, { method: 'POST', body: JSON.stringify(payload) });
+                const result = await res.json();
+                if(result.status === 'success') {
+                    MASTER_DATA.rekod_laporan.push({ Kod_Unit: unitCode, Minggu: minggu });
+                    Swal.fire('Berjaya!', 'Laporan aktiviti telah disimpan.', 'success').then(() => {
+                        renderLanding();
+                    });
+                }
+            } catch (e) {
+                Swal.fire('Ralat', 'Gagal menghantar laporan. Pastikan saiz gambar tidak terlalu besar.', 'error');
+            }
+        }
+
+        // ==========================================
+        // PUNCA SEBENAR SISTEM BOS TAK GERAK-GERAK:
+        // KOD "START" DI BAWAH NI TERTINGGAL! 👇
+        // ==========================================
+        window.onload = initApp;
+// ==========================================
+//           MODUL RUANGAN ADMIN
+// ==========================================
+
+// 1. Fungsi Minta PIN
+function bukaAdmin() {
+    Swal.fire({
+        title: 'Ruangan Admin',
+        text: 'Sila masukkan kod PIN untuk akses:',
+        input: 'password',
+        inputAttributes: {
+            autocapitalize: 'off',
+            autocorrect: 'off'
+        },
+        showCancelButton: true,
+        confirmButtonText: 'Masuk',
+        cancelButtonText: 'Batal',
+        confirmButtonColor: '#1f2937', // Warna gelap sikit untuk admin
+        cancelButtonColor: '#6b7280',
+    }).then((result) => {
+        if (result.isConfirmed) {
+            if (result.value === '8888') {
+                Swal.fire({
+                    title: 'Akses Berjaya!',
+                    text: 'Selamat datang ke Dashboard Admin.',
+                    icon: 'success',
+                    timer: 1500,
+                    showConfirmButton: false
+                }).then(() => {
+                    renderAdminDashboard();
+                });
+            } else {
+                Swal.fire('Akses Ditolak', 'KOD PIN SALAH!', 'error');
+            }
+        }
+    });
+}
+
+// 2. Fungsi Lukis Rangka Dashboard Admin
+function renderAdminDashboard() {
+    const container = document.getElementById('app');
+    
+    // Perhatikan saya guna print:hidden pada dua div kat bawah ni
+    container.innerHTML = `
+        <div class="print:hidden mb-6 flex justify-between items-center sticky top-0 bg-[#f8fafc] pt-4 pb-2 z-10">
+            <button onclick="renderLanding()" class="text-indigo-600 font-bold flex items-center gap-2 bg-white px-4 py-2 rounded-lg shadow-sm">
+                <i class="fas fa-arrow-left"></i> Keluar
+            </button>
+            <span class="bg-gray-800 text-white px-4 py-2 rounded-lg text-sm font-bold shadow-sm uppercase">
+                <i class="fas fa-user-shield"></i> Dashboard Admin
+            </span>
+        </div>
+
+        <div class="print:hidden bg-white p-4 rounded-xl shadow-sm mb-6 border border-gray-200">
+            <div class="grid grid-cols-3 gap-2">
+                <button onclick="paparStatistik()" class="flex flex-col items-center justify-center bg-blue-50 hover:bg-blue-600 hover:text-white text-blue-700 py-3 px-2 rounded-lg font-bold transition duration-200 border border-blue-200">
+                    <i class="fas fa-chart-pie text-xl mb-1"></i>
+                    <span class="text-xs text-center">Statistik</span>
+                </button>
+                <button onclick="paparSemakanKehadiran()" class="flex flex-col items-center justify-center bg-green-50 hover:bg-green-600 hover:text-white text-green-700 py-3 px-2 rounded-lg font-bold transition duration-200 border border-green-200">
+                    <i class="fas fa-clipboard-check text-xl mb-1"></i>
+                    <span class="text-xs text-center">Kehadiran</span>
+                </button>
+                <button onclick="paparSemakanLaporan()" class="flex flex-col items-center justify-center bg-purple-50 hover:bg-purple-600 hover:text-white text-purple-700 py-3 px-2 rounded-lg font-bold transition duration-200 border border-purple-200">
+                    <i class="fas fa-file-alt text-xl mb-1"></i>
+                    <span class="text-xs text-center">Laporan</span>
+                </button>
+            </div>
+        </div>
+
+        <div id="admin-content" class="print:border-none print:shadow-none print:p-0 bg-white p-6 rounded-xl shadow-sm border border-gray-200 min-h-[300px] flex flex-col items-center justify-center text-gray-400">
+            <i class="fas fa-hand-pointer text-5xl mb-4 text-gray-300"></i>
+            <p class="font-medium text-center">Sila pilih menu di atas untuk mula menyemak.</p>
+        </div>
+    `;
+    window.scrollTo(0, 0);
+}
+
+// --- MODUL 1: STATISTIK PENGISIAN (VERSI MANTAP) ---
+function paparStatistik() {
+    const container = document.getElementById('admin-content');
+    
+    const senaraiKategori = [...new Set(MASTER_DATA.units.map(u => u.units__kategori))];
+    let pilihanKategori = senaraiKategori.map(kat => `<option value="${kat}">${kat}</option>`).join('');
+
+    let pilihanMinggu = '';
+    for (let i = 1; i <= 12; i++) {
+        pilihanMinggu += `<option value="${i}">Minggu ${i}</option>`;
+    }
+
+    container.innerHTML = `
+        <div class="w-full">
+            <div class="border-b pb-4 mb-6">
+                <h3 class="font-bold text-xl text-blue-700 mb-4"><i class="fas fa-chart-pie"></i> Statistik Pengisian</h3>
+                <div class="grid grid-cols-2 gap-4 bg-gray-50 p-4 rounded-xl border border-gray-200">
+                    <div>
+                        <label class="block text-xs font-bold text-gray-500 uppercase mb-1">Kategori:</label>
+                        <select id="stat-kategori" class="w-full border-2 border-gray-300 rounded-lg p-2 font-semibold focus:border-blue-500 outline-none" onchange="janaStatistik()">
+                            <option value="SEMUA">-- SEMUA --</option>
+                            ${pilihanKategori}
+                        </select>
+                    </div>
+                    <div>
+                        <label class="block text-xs font-bold text-gray-500 uppercase mb-1">Minggu:</label>
+                        <select id="stat-minggu" class="w-full border-2 border-gray-300 rounded-lg p-2 font-semibold text-center focus:border-blue-500 outline-none" onchange="janaStatistik()">
+                            ${pilihanMinggu}
+                        </select>
+                    </div>
+                </div>
+            </div>
+            <div id="hasil-statistik"></div>
+        </div>
+    `;
+    janaStatistik();
+}
+
+function janaStatistik() {
+    const minggu = document.getElementById('stat-minggu').value;
+    const kategori = document.getElementById('stat-kategori').value;
+    const divHasil = document.getElementById('hasil-statistik');
+    
+    let lengkap = [], separuh = [], belumIsi = [];
+    
+    // Tapis unit berdasarkan kategori
+    let unitTapis = MASTER_DATA.units;
+    if (kategori !== "SEMUA") {
+        unitTapis = MASTER_DATA.units.filter(u => u.units__kategori === kategori);
+    }
+
+    unitTapis.forEach(unit => {
+        const adaHadir = (MASTER_DATA.Rekod_Kehadiran || MASTER_DATA.rekod_kehadiran || []).find(r => r.Kod_Unit === unit.units__kod_unit && String(r.Minggu) === String(minggu));
+        const adaLaporan = (MASTER_DATA.Rekod_Laporan || MASTER_DATA.rekod_laporan || []).find(r => r.Kod_Unit === unit.units__kod_unit && String(r.Minggu) === String(minggu));
+
+        if (adaHadir && adaLaporan) lengkap.push(unit);
+        else if (adaHadir && !adaLaporan) separuh.push(unit);
+        else belumIsi.push(unit);
+    });
+    
+    const peratus = unitTapis.length > 0 ? Math.round((lengkap.length / unitTapis.length) * 100) : 0;
+
+    divHasil.innerHTML = `
+        <div class="grid grid-cols-4 gap-3 mb-6">
+            <div class="bg-white p-3 rounded-xl border border-gray-200 text-center shadow-sm">
+                <p class="text-[10px] text-gray-400 font-bold uppercase">Unit</p>
+                <p class="text-2xl font-black text-gray-700">${unitTapis.length}</p>
+            </div>
+            <div class="bg-green-50 p-3 rounded-xl border border-green-200 text-center shadow-sm">
+                <p class="text-[10px] text-green-600 font-bold uppercase">Lengkap</p>
+                <p class="text-2xl font-black text-green-700">${lengkap.length}</p>
+            </div>
+            <div class="bg-yellow-50 p-3 rounded-xl border border-yellow-200 text-center shadow-sm">
+                <p class="text-[10px] text-yellow-600 font-bold uppercase">KEHADIRAN SAHAJA</p>
+                <p class="text-2xl font-black text-yellow-700">${separuh.length}</p>
+            </div>
+            <div class="bg-red-50 p-3 rounded-xl border border-red-200 text-center shadow-sm">
+                <p class="text-[10px] text-red-600 font-bold uppercase">Kosong</p>
+                <p class="text-2xl font-black text-red-700">${belumIsi.length}</p>
+            </div>
+        </div>
+
+        <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <div class="bg-white border border-red-100 rounded-xl overflow-hidden">
+                <div class="bg-red-500 p-2"><h4 class="font-bold text-white text-xs text-center">🔴 KOSONG</h4></div>
+                <div class="p-2 max-h-60 overflow-y-auto">
+                    ${belumIsi.map(u => `<div class="p-2 border-b text-[11px] font-medium text-gray-700">${u.units__nama_unit}</div>`).join('') || '<p class="text-center text-xs py-4 text-gray-400 italic">Tiada</p>'}
+                </div>
+            </div>
+            <div class="bg-white border border-yellow-100 rounded-xl overflow-hidden">
+                <div class="bg-yellow-500 p-2"><h4 class="font-bold text-white text-xs text-center">🟡 BELUM ISI LAPORAN</h4></div>
+                <div class="p-2 max-h-60 overflow-y-auto">
+                    ${separuh.map(u => `<div class="p-2 border-b text-[11px] font-medium text-gray-700">${u.units__nama_unit}</div>`).join('') || '<p class="text-center text-xs py-4 text-gray-400 italic">Tiada</p>'}
+                </div>
+            </div>
+            <div class="bg-white border border-green-100 rounded-xl overflow-hidden">
+                <div class="bg-green-500 p-2"><h4 class="font-bold text-white text-xs text-center">🟢 LENGKAP</h4></div>
+                <div class="p-2 max-h-60 overflow-y-auto">
+                    ${lengkap.map(u => `<div class="p-2 border-b text-[11px] font-medium text-gray-700">${u.units__nama_unit}</div>`).join('') || '<p class="text-center text-xs py-4 text-gray-400 italic">Tiada</p>'}
+                </div>
+            </div>
+        </div>
+    `;
+}
+
+function paparSemakanKehadiran() {
+    const container = document.getElementById('admin-content');
+    
+    const senaraiKategori = [...new Set(MASTER_DATA.units.map(u => u.units__kategori))];
+    let pilihanKategori = senaraiKategori.map(kat => `<option value="${kat}">${kat}</option>`).join('');
+
+    // Hadkan ke 12 minggu sahaja
+    let pilihanMinggu = '';
+    for (let i = 1; i <= 12; i++) {
+        pilihanMinggu += `<option value="${i}">Minggu ${i}</option>`;
+    }
+
+    container.innerHTML = `
+        <div class="w-full">
+            <div class="border-b pb-4 mb-6">
+                <h3 class="font-bold text-xl text-green-700 mb-4"><i class="fas fa-clipboard-check"></i> Semakan Kehadiran</h3>
+                <div class="grid grid-cols-2 gap-4 bg-gray-50 p-4 rounded-xl border border-gray-200">
+                    <div>
+                        <label class="block text-xs font-bold text-gray-500 uppercase mb-1">Pilih Kategori:</label>
+                        <select id="filter-kategori" class="w-full border-2 border-gray-300 rounded-lg p-2 font-semibold focus:border-green-500 outline-none" onchange="janaJadualKehadiran()">
+                            <option value="SEMUA">-- SEMUA KATEGORI --</option>
+                            ${pilihanKategori}
+                        </select>
+                    </div>
+                    <div>
+                        <label class="block text-xs font-bold text-gray-500 uppercase mb-1">Minggu:</label>
+                        <select id="minggu-kehadiran" class="w-full border-2 border-gray-300 rounded-lg p-2 font-semibold text-center focus:border-green-500 outline-none" onchange="janaJadualKehadiran()">
+                            ${pilihanMinggu}
+                        </select>
+                    </div>
+                </div>
+            </div>
+            <div id="jadual-kehadiran" class="overflow-x-auto"></div>
+        </div>
+    `;
+    janaJadualKehadiran();
+}
+function janaJadualKehadiran() {
+    const minggu = document.getElementById('minggu-kehadiran').value;
+    const kategoriDipilih = document.getElementById('filter-kategori').value;
+    const divJadual = document.getElementById('jadual-kehadiran');
+    
+    const dataKehadiran = MASTER_DATA.Rekod_Kehadiran || MASTER_DATA.rekod_kehadiran || [];
+    
+    // 1. Tapis ikut MINGGU dulu
+    let rekodTapis = dataKehadiran.filter(r => String(r.Minggu) === String(minggu));
+    
+    // 2. Tapis ikut KATEGORI (kita kena check kategori unit tersebut di MASTER_DATA.units)
+    if (kategoriDipilih !== "SEMUA") {
+        rekodTapis = rekodTapis.filter(rekod => {
+            const infoUnit = MASTER_DATA.units.find(u => u.units__kod_unit === rekod.Kod_Unit);
+            return infoUnit && infoUnit.units__kategori === kategoriDipilih;
+        });
+    }
+    
+    if(rekodTapis.length === 0) {
+        divJadual.innerHTML = `
+            <div class="text-center py-10 bg-gray-50 rounded-xl border border-dashed border-gray-300 text-gray-400">
+                <i class="fas fa-search text-5xl mb-3 text-gray-300"></i>
+                <p class="font-medium">Tiada rekod untuk Minggu ${minggu} ${kategoriDipilih !== 'SEMUA' ? 'bagi kategori ' + kategoriDipilih : ''}</p>
+            </div>`;
+        return;
+    }
+
+    // Bina baris jadual
+    let rows = rekodTapis.map((rekod, index) => {
+        const infoUnit = MASTER_DATA.units.find(u => u.units__kod_unit === rekod.Kod_Unit);
+        const namaPenuh = infoUnit ? infoUnit.units__nama_unit : rekod.Kod_Unit;
+        const peratus = parseFloat(rekod.Peratus_Hadir) || 0;
+        const warnaPeratus = peratus >= 80 ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700';
+
+        return `
+            <tr class="border-b hover:bg-blue-50 transition">
+                <td class="p-3 text-center text-gray-400 text-xs">${index + 1}</td>
+                <td class="p-3">
+                    <div class="font-bold text-gray-800 leading-tight">${namaPenuh}</div>
+                    <div class="text-[10px] text-gray-400 font-mono">${rekod.Kod_Unit}</div>
+                </td>
+                <td class="p-3 text-center font-black text-blue-600">${rekod.Jumlah_Hadir || 0}</td>
+                <td class="p-3 text-center"><span class="px-2 py-1 rounded text-xs font-bold ${warnaPeratus}">${peratus}%</span></td>
+                <td class="p-3 text-center">
+                    <button onclick="paparPenuhKehadiran('${rekod.Kod_Unit}', '${rekod.Minggu}')" class="bg-blue-100 text-blue-700 px-3 py-1 rounded font-bold text-xs hover:bg-blue-200 transition">
+                        <i class="fas fa-eye mr-1"></i> Lihat
+                    </button>
+                </td>
+            </tr>
+        `;
+    }).join('');
+
+    divJadual.innerHTML = `
+        <table class="w-full text-left border-collapse bg-white shadow-sm rounded-lg overflow-hidden border border-gray-200">
+            <thead class="bg-gray-800 text-white text-xs uppercase tracking-wider">
+                <tr>
+                    <th class="p-3 text-center w-10">Bil</th>
+                    <th class="p-3">Nama Unit & Kod</th>
+                    <th class="p-3 text-center">Hadir</th>
+                    <th class="p-3 text-center">Peratus</th>
+                    <th class="p-3 text-center">Tindakan</th> </tr>
+            </thead>
+            <tbody class="text-sm">${rows}</tbody>
+        </table>
+    `;
+}
+// --- MODUL 3: SEMAKAN LAPORAN ---
+
+// FUNGSI 1: Untuk bina tapak dan dropdown
+function paparSemakanLaporan() {
+    const container = document.getElementById('admin-content');
+    
+    // Ambil Kategori & Bina Dropdown Minggu (1-12)
+    const senaraiKategori = [...new Set(MASTER_DATA.units.map(u => u.units__kategori))];
+    let pilihanKategori = senaraiKategori.map(kat => `<option value="${kat}">${kat}</option>`).join('');
+
+    let pilihanMinggu = '';
+    for (let i = 1; i <= 12; i++) {
+        pilihanMinggu += `<option value="${i}">Minggu ${i}</option>`;
+    }
+
+    container.innerHTML = `
+        <div class="w-full">
+            <div class="border-b pb-4 mb-6">
+                <h3 class="font-bold text-xl text-purple-700 mb-4"><i class="fas fa-file-alt"></i> Semakan Laporan Aktiviti</h3>
+                
+                <div class="grid grid-cols-2 gap-4 bg-gray-50 p-4 rounded-xl border border-gray-200">
+                    <div>
+                        <label class="block text-xs font-bold text-gray-500 uppercase mb-1">Kategori:</label>
+                        <select id="lap-kategori" class="w-full border-2 border-gray-300 rounded-lg p-2 font-semibold focus:border-purple-500 outline-none" onchange="janaSenaraiLaporan()">
+                            <option value="SEMUA">-- SEMUA --</option>
+                            ${pilihanKategori}
+                        </select>
+                    </div>
+                    <div>
+                        <label class="block text-xs font-bold text-gray-500 uppercase mb-1">Minggu:</label>
+                        <select id="lap-minggu" class="w-full border-2 border-gray-300 rounded-lg p-2 font-semibold text-center focus:border-purple-500 outline-none" onchange="janaSenaraiLaporan()">
+                            ${pilihanMinggu}
+                        </select>
+                    </div>
+                </div>
+            </div>
+
+            <div id="senarai-laporan" class="space-y-4"></div>
+        </div>
+    `;
+    
+    janaSenaraiLaporan();
+}
+
+// FUNGSI 2: Untuk tarik data dan bina kad
+function janaSenaraiLaporan() {
+    const minggu = document.getElementById('lap-minggu').value;
+    const kategori = document.getElementById('lap-kategori').value;
+    const divSenarai = document.getElementById('senarai-laporan');
+    
+    const dataLaporan = MASTER_DATA.Rekod_Laporan || MASTER_DATA.rekod_laporan || [];
+    
+    // 1. Tapis ikut MINGGU
+    let rekodTapis = dataLaporan.filter(r => String(r.Minggu) === String(minggu));
+    
+    // 2. Tapis ikut KATEGORI
+    if (kategori !== "SEMUA") {
+        rekodTapis = rekodTapis.filter(rekod => {
+            const infoUnit = MASTER_DATA.units.find(u => u.units__kod_unit === rekod.Kod_Unit);
+            return infoUnit && infoUnit.units__kategori === kategori;
+        });
+    }
+    
+    if(rekodTapis.length === 0) {
+        divSenarai.innerHTML = `
+            <div class="text-center py-10 bg-gray-50 rounded-xl border border-dashed border-gray-300 text-gray-400">
+                <i class="fas fa-folder-open text-5xl mb-3 text-gray-300"></i>
+                <p class="font-medium">Tiada laporan dihantar untuk Minggu ${minggu} ${kategori !== 'SEMUA' ? 'bagi kategori ' + kategori : ''}</p>
+            </div>`;
+        return;
+    }
+
+    // Bina Kad Laporan
+    let kadHtml = rekodTapis.map((rekod, index) => {
+        // Cari Nama Penuh
+        const infoUnit = MASTER_DATA.units.find(u => u.units__kod_unit === rekod.Kod_Unit);
+        const namaPenuh = infoUnit ? infoUnit.units__nama_unit : rekod.Kod_Unit;
+        
+        // Tarik data dari Aktiviti_Dijalankan dan Rumusan
+        const teksAktiviti = rekod.Aktiviti_Dijalankan || rekod.aktiviti_dijalankan || "-";
+        const teksRumusan = rekod.Rumusan || rekod.rumusan || "-";
+        
+        return `
+            <div class="bg-white border-2 border-purple-100 rounded-xl p-5 shadow-sm hover:shadow-md transition">
+                <div class="flex justify-between items-start mb-4 border-b border-gray-100 pb-3">
+                    <div>
+                        <h4 class="font-bold text-gray-800 text-lg">${namaPenuh}</h4>
+                        <span class="text-xs font-mono bg-purple-100 text-purple-700 px-2 py-1 rounded inline-block mt-1">${rekod.Kod_Unit}</span>
+                    </div>
+                    <span class="text-xs font-bold text-gray-400 bg-gray-100 px-3 py-1 rounded-full">#${index + 1}</span>
+                </div>
+                
+                <div class="mb-4">
+                    <p class="text-[11px] font-bold text-gray-400 uppercase tracking-wider mb-1"><i class="fas fa-running mr-1"></i> Aktiviti Dijalankan:</p>
+                    <div class="text-sm text-gray-700 line-clamp-2 bg-gray-50 p-3 rounded-lg border border-gray-100">${teksAktiviti}</div>
+                </div>
+                
+                <div class="mb-4">
+                    <p class="text-[11px] font-bold text-gray-400 uppercase tracking-wider mb-1"><i class="fas fa-lightbulb mr-1"></i> Rumusan:</p>
+                    <div class="text-sm text-gray-700 line-clamp-2 bg-gray-50 p-3 rounded-lg border border-gray-100">${teksRumusan}</div>
+                </div>
+
+                <div class="pt-3 border-t border-gray-50 mt-4">
+                    <button onclick="paparPenuhLaporan('${rekod.Kod_Unit}', '${rekod.Minggu}')" 
+                        class="w-full bg-purple-600 text-white px-4 py-2 rounded-lg font-bold text-xs hover:bg-purple-700 transition flex items-center justify-center shadow-sm">
+                        <i class="fas fa-book-open mr-2"></i> Baca Laporan Penuh & Cetak
+                    </button>
+                </div>
+            </div>
+        `;
+    }).join('');
+
+    divSenarai.innerHTML = kadHtml;
+}
+// --- LANGKAH 3: FUNGSI PAPARAN PENUH KEHADIRAN (KEMASKINI SUSUNAN & NAMA) ---
+function paparPenuhKehadiran(kodUnit, minggu) {
+    const container = document.getElementById('admin-content');
+    
+    // 1. Cari data rekod dan unit
+    const dataKehadiran = MASTER_DATA.Rekod_Kehadiran || MASTER_DATA.rekod_kehadiran || [];
+    const rekod = dataKehadiran.find(r => r.Kod_Unit === kodUnit && String(r.Minggu) === String(minggu));
+    const infoUnit = MASTER_DATA.units.find(u => u.units__kod_unit === kodUnit);
+    const namaPenuh = infoUnit ? infoUnit.units__nama_unit : kodUnit;
+
+    if (!rekod) {
+        alert("Ralat: Rekod tidak dijumpai.");
+        return;
+    }
+
+    // 2. Fungsi Magik: Tukar Kod ke Nama & Letak Nombor (1, 2, 3...)
+    const formatDanTukarNama = (senaraiKod, jenis) => {
+        if (!senaraiKod || senaraiKod.trim() === "" || senaraiKod === "-") return "<span class='text-gray-400 italic text-sm pl-4'>Tiada rekod</span>";
+        
+        let senaraiArray = [];
+        // Asingkan data sama ada format JSON array atau koma/enter
+        if (typeof senaraiKod === 'string' && senaraiKod.startsWith('[')) {
+            try { senaraiArray = JSON.parse(senaraiKod); } catch(e){ senaraiArray = [senaraiKod]; }
+        } else {
+            senaraiArray = String(senaraiKod).split(/[,\n]/).map(item => item.trim()).filter(item => item !== "");
+        }
+
+        // Tentukan nak cari dalam database murid atau guru
+        let dbRujukan = jenis === 'murid' ? MASTER_DATA.murid : MASTER_DATA.guru;
+
+        let senaraiNamaHTML = senaraiArray.map((kod, index) => {
+            let nama = kod; // Kalau tak jumpa nama, dia tunjuk kod (backup)
+            
+            if (dbRujukan && dbRujukan.length > 0) {
+                // Cari row yang sepadan dengan kod ni
+                let jumpa = dbRujukan.find(row => Object.values(row).includes(kod));
+                if (jumpa) {
+                    // Cari kolum yang nama dia ada perkataan 'nama' (contoh: murid__nama_murid)
+                    let keyNama = Object.keys(jumpa).find(k => k.toLowerCase().includes('nama'));
+                    if (keyNama) nama = jumpa[keyNama];
+                }
+            }
+            // Susun memanjang ke bawah dengan padding sikit
+            return `<div class="py-1 border-b border-gray-50 last:border-0 hover:bg-gray-50 px-2 rounded"><span class="inline-block w-6 text-gray-400 text-xs">${index + 1}.</span> ${nama}</div>`;
+        });
+
+        return senaraiNamaHTML.join('');
+    };
+
+    // 3. Tarik dan format keempat-empat senarai (Panggil fungsi magik tadi)
+    const senaraiMuridHadir = formatDanTukarNama(rekod.Murid_Hadir, 'murid');
+    const senaraiMuridTakHadir = formatDanTukarNama(rekod.Murid_Tak_Hadir, 'murid');
+    const senaraiGuruHadir = formatDanTukarNama(rekod.Guru_Hadir, 'guru');
+    const senaraiGuruTakHadir = formatDanTukarNama(rekod.Guru_Tak_Hadir, 'guru');
+
+    // 4. Bina Paparan Laporan (Susunan Memanjang / Single Column)
+    container.innerHTML = `
+        <div class="w-full bg-white p-8 rounded-xl border border-gray-200 shadow-sm" id="kertas-cetak">
+            
+            <div class="print:hidden flex justify-between items-center mb-6 border-b pb-4">
+                <button onclick="paparSemakanKehadiran()" class="text-gray-500 hover:text-gray-800 font-bold transition flex items-center">
+                    <i class="fas fa-arrow-left mr-2"></i> Kembali
+                </button>
+                <button onclick="window.print()" class="bg-gray-800 text-white px-5 py-2 rounded-lg text-sm font-bold shadow hover:bg-gray-700 transition flex items-center">
+                    <i class="fas fa-print mr-2"></i> Cetak PDF
+                </button>
+            </div>
+
+            <div class="text-center mb-8">
+                <h2 class="text-2xl font-black text-gray-800 uppercase tracking-wide">Laporan Kehadiran Kokurikulum</h2>
+                <p class="text-gray-500 font-semibold mt-1">Minggu ${minggu} &bull; Tahun 2026</p>
+            </div>
+
+            <div class="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8 bg-gray-50 p-5 rounded-lg border border-gray-200">
+                <div class="col-span-2"><p class="text-[10px] text-gray-500 uppercase font-bold tracking-wider mb-1">Nama Unit</p><p class="font-bold text-gray-800">${namaPenuh}</p></div>
+                <div><p class="text-[10px] text-gray-500 uppercase font-bold tracking-wider mb-1">Kod Unit</p><p class="font-bold text-gray-800 font-mono">${kodUnit}</p></div>
+                <div><p class="text-[10px] text-gray-500 uppercase font-bold tracking-wider mb-1">Peratus Hadir</p><p class="font-bold text-green-600">${rekod.Peratus_Hadir || 0}%</p></div>
+            </div>
+
+            <h3 class="font-bold text-lg border-b-2 border-gray-800 mb-4 pb-1 flex items-center"><i class="fas fa-chalkboard-teacher mr-2"></i> Kehadiran Guru Penasihat</h3>
+            <div class="space-y-4 mb-10 text-sm">
+                <div class="border border-green-200 rounded-lg overflow-hidden">
+                    <div class="bg-green-50 text-green-800 font-bold p-3 text-left border-b border-green-200 uppercase text-xs tracking-wider">Senarai Hadir</div>
+                    <div class="p-3 leading-relaxed">${senaraiGuruHadir}</div>
+                </div>
+                <div class="border border-red-200 rounded-lg overflow-hidden">
+                    <div class="bg-red-50 text-red-800 font-bold p-3 text-left border-b border-red-200 uppercase text-xs tracking-wider">Senarai Tidak Hadir</div>
+                    <div class="p-3 leading-relaxed">${senaraiGuruTakHadir}</div>
+                </div>
+            </div>
+
+            <h3 class="font-bold text-lg border-b-2 border-gray-800 mb-4 pb-1 flex items-center"><i class="fas fa-users mr-2"></i> Kehadiran Murid</h3>
+            <div class="space-y-4 mb-8 text-sm">
+                <div class="border border-green-200 rounded-lg overflow-hidden">
+                    <div class="bg-green-50 text-green-800 font-bold p-3 text-left border-b border-green-200 flex justify-between items-center uppercase text-xs tracking-wider">
+                        <span>Senarai Hadir</span>
+                        <span class="bg-green-200 text-green-800 text-xs px-2 py-1 rounded-full ml-2">Jumlah: ${rekod.Jumlah_Hadir || 0}</span>
+                    </div>
+                    <div class="p-3 leading-relaxed">${senaraiMuridHadir}</div>
+                </div>
+                <div class="border border-red-200 rounded-lg overflow-hidden">
+                    <div class="bg-red-50 text-red-800 font-bold p-3 text-left border-b border-red-200 uppercase text-xs tracking-wider">Senarai Tidak Hadir</div>
+                    <div class="p-3 leading-relaxed">${senaraiMuridTakHadir}</div>
+                </div>
+            </div>
+            
+            <div class="mt-16 grid grid-cols-2 gap-8 text-center pt-8 border-t border-gray-200 break-inside-avoid">
+                <div>
+                    <p class="border-b border-gray-400 w-3/4 mx-auto mb-2"></p>
+                    <p class="text-xs font-bold text-gray-600">Disahkan Oleh (Guru Penasihat)</p>
+                </div>
+                <div>
+                    <p class="border-b border-gray-400 w-3/4 mx-auto mb-2"></p>
+                    <p class="text-xs font-bold text-gray-600">Disemak Oleh (PK Kokurikulum)</p>
+                </div>
+            </div>
+
+            <div class="mt-8 text-[10px] text-gray-400 text-center">
+                <p>Digital Hub MPS | Dokumen ini dijana secara digital pada ${new Date().toLocaleDateString('ms-MY')}</p>
+            </div>
+        </div>
+    `;
+}    
+// --- KEMASKINI LANGKAH 5: FUNGSI LAPORAN BERSAMA GAMBAR ---
+function paparPenuhLaporan(kodUnit, minggu) {
+    const container = document.getElementById('admin-content');
+    
+    const dataLaporan = MASTER_DATA.Rekod_Laporan || MASTER_DATA.rekod_laporan || [];
+    const rekod = dataLaporan.find(r => r.Kod_Unit === kodUnit && String(r.Minggu) === String(minggu));
+    const infoUnit = MASTER_DATA.units.find(u => u.units__kod_unit === kodUnit);
+    const namaPenuh = infoUnit ? infoUnit.units__nama_unit : kodUnit;
+
+    if (!rekod) {
+        alert("Ralat: Laporan tidak dijumpai.");
+        return;
+    }
+
+    // --- LOGIK GAMBAR (Khas untuk Kolum Gambar_1 & Gambar_2) ---
+    const link1 = rekod.Gambar_1 || "";
+    const link2 = rekod.Gambar_2 || "";
+    let htmlGambar = "";
+
+   // 1. Fungsi convert yang lebih 'ganas' (Paksa keluar gambar)
+    const convertGDrive = (url) => {
+        if (!url || !url.includes("http")) return null;
+        
+        // Cari ID unik gambar (kod panjang dalam URL Drive)
+        const match = url.match(/[-\w]{25,}/);
+        if (match && match[0]) {
+            const imageId = match[0];
+            // Format ni paling stabil untuk bypass sekatan hotlink Google
+            return `https://drive.google.com/thumbnail?id=${imageId}&sz=w1000`;
+        }
+        return null;
+    };
+
+    // 2. Ambil link (Kalau cikgu upload banyak gambar, kita ambil yang pertama)
+    const imgUrl1 = convertGDrive(String(link1).split(',')[0]);
+    const imgUrl2 = convertGDrive(String(link2).split(',')[0]);
+
+    // 3. Bina HTML Paparan Gambar
+    if (imgUrl1 || imgUrl2) {
+        htmlGambar = `
+        <div class="mt-10 break-inside-avoid">
+            <h3 class="font-extrabold text-lg border-b-2 border-gray-800 mb-4 pb-2 flex items-center text-gray-800 uppercase tracking-wider text-sm">
+                <i class="fas fa-camera text-blue-500 mr-3"></i> 3.0 Lensa Aktiviti (Gambar)
+            </h3>
+            <div class="grid grid-cols-1 sm:grid-cols-2 gap-6">
+                ${imgUrl1 ? `
+                    <div class="border-2 border-gray-200 rounded-xl overflow-hidden bg-white shadow-sm">
+                        <div class="bg-gray-100 py-1 px-3 border-b">
+                            <p class="text-[10px] font-bold text-gray-500 uppercase">Gambar Utama</p>
+                        </div>
+                        <img src="${imgUrl1}" class="w-full h-72 object-cover block" alt="Gambar 1">
+                    </div>` : ''}
+                
+                ${imgUrl2 ? `
+                    <div class="border-2 border-gray-200 rounded-xl overflow-hidden bg-white shadow-sm">
+                        <div class="bg-gray-100 py-1 px-3 border-b">
+                            <p class="text-[10px] font-bold text-gray-500 uppercase">Gambar Tambahan</p>
+                        </div>
+                        <img src="${imgUrl2}" class="w-full h-72 object-cover block" alt="Gambar 2">
+                    </div>` : ''}
+            </div>
+            <p class="mt-2 text-[10px] text-gray-400 italic">* Nota: Jika gambar tidak muncul, pastikan akses folder Google Drive diletakkan sebagai 'Public (Anyone with the link)'.</p>
+        </div>`;
+    }
+
+    const teksAktiviti = rekod.Aktiviti_Dijalankan || rekod.aktiviti_dijalankan || "Tiada rekod.";
+    const teksRumusan = rekod.Rumusan || rekod.rumusan || "Tiada rekod.";
+    const tarikhAktiviti = rekod.Tarikh || rekod.Timestamp || "-";
+    const namaGuru = rekod.Nama_Pelapor || "Guru Penasihat";
+
+    const formatTeks = (teks) => String(teks).replace(/\n/g, '<br>');
+
+    container.innerHTML = `
+        <div class="w-full bg-white p-8 rounded-xl border border-gray-200" id="kertas-cetak">
+            
+            <div class="print:hidden flex justify-between items-center mb-6 border-b pb-4">
+                <button onclick="paparSemakanLaporan()" class="text-gray-500 hover:text-gray-800 font-bold flex items-center">
+                    <i class="fas fa-arrow-left mr-2"></i> Kembali
+                </button>
+                <button onclick="window.print()" class="bg-gray-800 text-white px-5 py-2 rounded-lg text-sm font-bold shadow flex items-center">
+                    <i class="fas fa-print mr-2"></i> Cetak Laporan
+                </button>
+            </div>
+
+            <div class="text-center mb-8 border-b-4 border-gray-800 pb-6">
+                <h2 class="text-2xl font-black text-gray-800 uppercase mb-2">Laporan Aktiviti Kokurikulum</h2>
+                <p class="text-gray-600 font-bold uppercase text-sm">Minggu ${minggu} &bull; Tahun 2026</p>
+            </div>
+
+            <div class="grid grid-cols-2 gap-4 mb-8 text-sm bg-gray-50 p-4 rounded-lg border">
+                <div><p class="text-[10px] text-gray-400 font-bold uppercase">Unit</p><p class="font-bold">${namaPenuh}</p></div>
+                <div><p class="text-[10px] text-gray-400 font-bold uppercase">Tarikh</p><p class="font-bold">${tarikhAktiviti}</p></div>
+            </div>
+
+            <div class="space-y-8">
+                <div>
+                    <h3 class="font-bold border-b-2 border-gray-300 mb-2 pb-1 text-sm uppercase">1.0 Aktiviti Dijalankan</h3>
+                    <div class="text-gray-800 text-sm pl-2">${formatTeks(teksAktiviti)}</div>
+                </div>
+                
+                <div>
+                    <h3 class="font-bold border-b-2 border-gray-300 mb-2 pb-1 text-sm uppercase">2.0 Rumusan / Impak</h3>
+                    <div class="text-gray-800 text-sm pl-2">${formatTeks(teksRumusan)}</div>
+                </div>
+
+                ${htmlGambar}
+            </div>
+            
+            <div class="mt-20 grid grid-cols-2 gap-12 text-center pt-8 break-inside-avoid">
+                <div><p class="border-b border-gray-800 mb-2"></p><p class="text-xs font-bold uppercase">Tandatangan Pelapor</p></div>
+                <div><p class="border-b border-gray-800 mb-2"></p><p class="text-xs font-bold uppercase">Pengesahan PK KOKO</p></div>
+            </div>
+<div class="mt-8 text-[10px] text-gray-400 text-center">
+                <p>Digital Hub MPS | Dokumen ini dijana secara digital pada ${new Date().toLocaleDateString('ms-MY')}</p>
+            </div>
+        </div>
+    `;
+}
+</script>
+<button onclick="location.reload()" style="position: fixed; bottom: 20px; right: 20px; padding: 12px 15px; background-color: #0d6efd; color: white; border: none; border-radius: 50px; box-shadow: 0 4px 8px rgba(0,0,0,0.3); cursor: pointer; z-index: 1000; font-weight: bold;">
+  🏠 Menu Utama
+</button>
+<footer class="fixed bottom-0 left-0 w-full bg-white border-t border-gray-200 py-3 z-50 shadow-[0_-4px_6px_-1px_rgba(0,0,0,0.05)]">
+    <div class="flex items-center justify-center gap-2 text-[10px] sm:text-xs font-bold text-gray-400 uppercase tracking-widest">
+        <span>Digital Hub MPS © 2026 | Kokurikulum Digital</span>
+    </div>
+</footer>
+</body>
+</html>
